@@ -17,11 +17,18 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
 from torch.utils.data import Dataset
 
 from bboxes_utils import boxes_to_input, clip_boxes_xyxy
 from paper import GRID_SIZE, HSV_FACTOR, INPUT_SIZE
+
+
+def open_image(path: str | Path) -> Image.Image:
+    """Load an RGB image with EXIF orientation applied."""
+    image = Image.open(path)
+    image = ImageOps.exif_transpose(image)
+    return image.convert("RGB")
 
 
 def read_annotation(path: Path) -> tuple[np.ndarray, int, int]:
@@ -125,7 +132,8 @@ class BeeDataset(Dataset):
         name = self.samples[idx]
         boxes, width, height = read_annotation(self.ann_dir / name)
 
-        image = Image.open(self.img_dir / name[: -len(".json")]).convert("RGB")
+        image = open_image(self.img_dir / name[: -len(".json")])
+        # JSON size is the upright frame; after exif_transpose, pixels match it
         image = np.asarray(image.resize((self.img_size, self.img_size), Image.BILINEAR))
         boxes = boxes_to_input(boxes, width, height, self.img_size)
 

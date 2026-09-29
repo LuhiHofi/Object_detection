@@ -9,7 +9,6 @@ import torch.nn as nn
 
 from paper import DROPOUT, GRID_SIZE, LEAKY_SLOPE, NUM_BOXES
 
-
 class YOLOv1(nn.Module):
     def __init__(self, num_classes: int = 20, num_boxes: int = NUM_BOXES, num_channels: int = 3):
         super().__init__()
@@ -61,6 +60,14 @@ class YOLOv1(nn.Module):
             nn.Dropout(p=DROPOUT),
             nn.Linear(4096, self.grid_size * self.grid_size * self.out_dim),
         )
+        self.apply(self._init_weights)
+
+    @staticmethod
+    def _init_weights(m: nn.Module) -> None:
+        """He initialisation, as Darknet uses for its conv layers."""
+        if isinstance(m, (nn.Conv2d, nn.Linear)):
+            nn.init.kaiming_normal_(m.weight, a=LEAKY_SLOPE, nonlinearity="leaky_relu")
+            nn.init.zeros_(m.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

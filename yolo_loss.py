@@ -58,13 +58,13 @@ class YOLOv1Loss(nn.Module):
         self.lambda_coord = lambda_coord
         self.lambda_noobj = lambda_noobj
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, dict[str, float]]:
         """
         Args:
             pred:   (N, S, S, C + B*5), width/height in square-root space
             target: (N, S, S, C + 5)
         Returns:
-            Mean loss over the batch.
+            (mean loss over the batch, breakdown for logging)
         """
         N, C, B = pred.shape[0], self.C, self.B
 
@@ -94,9 +94,17 @@ class YOLOv1Loss(nn.Module):
 
         loss_cls = ((pred[..., :C] - target[..., :C]) ** 2 * obj.unsqueeze(-1)).sum()
 
-        return (
+        total = (
             self.lambda_coord * (loss_xy + loss_wh)
             + loss_obj
             + self.lambda_noobj * loss_noobj
             + loss_cls
         ) / N
+        parts = {
+            "xy": loss_xy.item() / N,
+            "wh": loss_wh.item() / N,
+            "obj": loss_obj.item() / N,
+            "noobj": loss_noobj.item() / N,
+            "cls": loss_cls.item() / N,
+        }
+        return total, parts
