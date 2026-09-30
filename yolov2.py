@@ -66,7 +66,6 @@ class Darknet19(nn.Module):
             conv_bn(512, 1024, 3), conv_bn(1024, 512, 1), conv_bn(512, 1024, 3),
             conv_bn(1024, 512, 1), conv_bn(512, 1024, 3),
         )
-        self.out_channels = (512, 1024)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         c4 = self.to_c4(x)

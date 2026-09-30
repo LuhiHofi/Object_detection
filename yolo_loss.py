@@ -1,7 +1,5 @@
 """YOLOv1 multi-part loss (Redmon et al., arXiv:1506.02640, equation 3)."""
 
-from __future__ import annotations
-
 import torch
 import torch.nn as nn
 

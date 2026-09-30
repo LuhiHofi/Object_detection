@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 import yolov2
 import yolov3
@@ -38,6 +38,7 @@ parser.add_argument("--seed", default=0, type=int, help="Seed for --shuffle and 
 parser.add_argument("--conf_threshold", default=0.3, type=float, help="Minimum score to draw a prediction.")
 parser.add_argument("--nms_threshold", default=0.5, type=float, help="IoU above which NMS drops a duplicate.")
 parser.add_argument("--no_gt", default=False, action="store_true", help="Hide the ground-truth boxes.")
+parser.add_argument("--max_size", default=1600, type=int, help="Longest side of the saved image; 0 keeps the full resolution.")
 parser.add_argument("--out", default=None, type=str, help="Output directory; defaults to <checkpoint dir>/vis.")
 parser.add_argument("--device", default=None, type=str, help="Torch device; autodetected when omitted.")
 
@@ -65,17 +66,23 @@ def load_model(weights: Path, device: torch.device) -> tuple[torch.nn.Module, st
     return model, version, img_size
 
 
-def draw_boxes(image: Image.Image, boxes_xyxy: np.ndarray, colour: str, scores=None, width: int = 3) -> None:
-    """Draw pixel-space xyxy boxes (and optional scores) onto a PIL image in place."""
+def draw_boxes(image: Image.Image, boxes_xyxy: np.ndarray, colour: str, scores=None) -> None:
+    """Draw pixel-space xyxy boxes (and optional scores) onto a PIL image in place.
+
+    Line and text size follow the image, so a 720p frame and a 4032px photo
+    come out equally legible.
+    """
     draw = ImageDraw.Draw(image)
+    line = max(2, round(max(image.size) / 400))
+    font = ImageFont.load_default(size=max(11, round(max(image.size) / 45)))
     for i, (x1, y1, x2, y2) in enumerate(boxes_xyxy.tolist()):
-        draw.rectangle([x1, y1, x2, y2], outline=colour, width=width)
+        draw.rectangle([x1, y1, x2, y2], outline=colour, width=line)
         if scores is not None:
             text = f"{float(scores[i]):.2f}"
-            tx, ty = x1 + 2, max(0, y1 - 14)
-            tw = 7 * len(text) + 4
-            draw.rectangle([tx - 2, ty, tx + tw, ty + 13], fill=colour)
-            draw.text((tx, ty), text, fill="black")
+            _, _, tw, th = draw.textbbox((0, 0), text, font=font)
+            ty = max(0, y1 - th - line)
+            draw.rectangle([x1, ty, x1 + tw + line, ty + th + line], fill=colour)
+            draw.text((x1 + line / 2, ty), text, fill="black", font=font)
 
 
 @torch.no_grad()
@@ -107,13 +114,20 @@ def main(args: argparse.Namespace):
         pred = model(tensor)
         det = detect(model, pred, args.conf_threshold, args.nms_threshold)[0]
 
-        # predictions are normalised xyxy, so scale back to the original picture
-        scale = np.array([width, height, width, height], dtype=np.float32)
-        pred_boxes = det["boxes"].numpy() * scale
+        # the net always sees an img_size square, so the picture we draw on is free to
+        # be any size; shrink the 4032px photos to something viewable
+        if args.max_size and max(width, height) > args.max_size:
+            shrink = args.max_size / max(width, height)
+            image = image.resize((round(width * shrink), round(height * shrink)), Image.LANCZOS)
+            gt_boxes = gt_boxes * shrink
+
+        # predictions are normalised xyxy, so scale them to whatever size we ended up with
+        w, h = image.size
+        pred_boxes = det["boxes"].numpy() * np.array([w, h, w, h], dtype=np.float32)
 
         if not args.no_gt:
-            draw_boxes(image, gt_boxes, "lime", width=3)
-        draw_boxes(image, pred_boxes, "red", scores=det["scores"], width=3)
+            draw_boxes(image, gt_boxes, "lime")
+        draw_boxes(image, pred_boxes, "red", scores=det["scores"])
 
         stem = Path(name[: -len(".json")]).stem  # "IMG_4672.jpeg.json" -> "IMG_4672"
         image.save(out_dir / f"{stem}_pred.jpg", quality=90)
