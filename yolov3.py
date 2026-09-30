@@ -21,15 +21,12 @@ Raw output per cell is unchanged: (A, 5 + C) = [tx, ty, tw, th, to, cls...].
 ``forward`` returns a list of three raw grids, coarse to fine.
 """
 
-from __future__ import annotations
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from yolov2 import conv_bn, grid_to_boxes
 
-INPUT_SIZE = 416
 NUM_SCALES = 3
 ANCHORS_PER_SCALE = 3
 NUM_ANCHORS = NUM_SCALES * ANCHORS_PER_SCALE
@@ -65,7 +62,6 @@ class Darknet53(nn.Module):
         self.s3 = stage(128, 256, 8)
         self.s4 = stage(256, 512, 8)
         self.s5 = stage(512, 1024, 4)
-        self.out_channels = (256, 512, 1024)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.s2(self.s1(self.stem(x)))
