@@ -38,7 +38,6 @@ parser.add_argument("--seed", default=0, type=int, help="Seed for --shuffle and 
 parser.add_argument("--conf_threshold", default=0.3, type=float, help="Minimum score to draw a prediction.")
 parser.add_argument("--nms_threshold", default=0.5, type=float, help="IoU above which NMS drops a duplicate.")
 parser.add_argument("--no_gt", default=False, action="store_true", help="Hide the ground-truth boxes.")
-parser.add_argument("--max_size", default=1600, type=int, help="Longest side of the saved image; 0 keeps the full resolution.")
 parser.add_argument("--out", default=None, type=str, help="Output directory; defaults to <checkpoint dir>/vis.")
 parser.add_argument("--device", default=None, type=str, help="Torch device; autodetected when omitted.")
 
@@ -114,16 +113,9 @@ def main(args: argparse.Namespace):
         pred = model(tensor)
         det = detect(model, pred, args.conf_threshold, args.nms_threshold)[0]
 
-        # the net always sees an img_size square, so the picture we draw on is free to
-        # be any size; shrink the 4032px photos to something viewable
-        if args.max_size and max(width, height) > args.max_size:
-            shrink = args.max_size / max(width, height)
-            image = image.resize((round(width * shrink), round(height * shrink)), Image.LANCZOS)
-            gt_boxes = gt_boxes * shrink
-
-        # predictions are normalised xyxy, so scale them to whatever size we ended up with
-        w, h = image.size
-        pred_boxes = det["boxes"].numpy() * np.array([w, h, w, h], dtype=np.float32)
+        # boxes_to_input's stretch to img_size cancels against bee_dataset's division by
+        # it, so a prediction is a fraction of the *original* frame, not of the 416 square
+        pred_boxes = det["boxes"].numpy() * np.array([width, height, width, height], dtype=np.float32)
 
         if not args.no_gt:
             draw_boxes(image, gt_boxes, "lime")
