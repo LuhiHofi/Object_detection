@@ -57,27 +57,6 @@ def boxes_to_input(
     return out
 
 
-def boxes_to_original(
-    boxes: np.ndarray | Sequence[Sequence[float]],
-    orig_w: int,
-    orig_h: int,
-    input_size: int = YOLO_INPUT_SIZE,
-) -> np.ndarray:
-    """Map boxes from network input pixels → original image pixels.
-
-    boxes: (N, 4) as xyxy [x1, y1, x2, y2] in 448×448 (or input_size) space.
-    Use this after inference before drawing or computing IoU on dataset labels.
-    """
-    boxes = np.asarray(boxes, dtype=np.float32)
-    if boxes.size == 0:
-        return boxes.reshape(0, 4)
-    sx, sy = resize_scale(orig_w, orig_h, input_size)
-    out = boxes.copy()
-    out[:, [0, 2]] /= sx
-    out[:, [1, 3]] /= sy
-    return out
-
-
 def clip_boxes_xyxy(
     boxes: np.ndarray,
     width: int,
@@ -90,24 +69,6 @@ def clip_boxes_xyxy(
     boxes[:, [0, 2]] = np.clip(boxes[:, [0, 2]], 0, width)
     boxes[:, [1, 3]] = np.clip(boxes[:, [1, 3]], 0, height)
     return boxes
-
-
-def xyxy_to_cxcywh(boxes: np.ndarray) -> np.ndarray:
-    """xyxy → (cx, cy, w, h)."""
-    boxes = np.asarray(boxes, dtype=np.float32)
-    if boxes.size == 0:
-        return boxes.reshape(0, 4)
-    x1, y1, x2, y2 = boxes.T
-    return np.stack([(x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1], axis=1)
-
-
-def cxcywh_to_xyxy(boxes: np.ndarray) -> np.ndarray:
-    """(cx, cy, w, h) → xyxy."""
-    boxes = np.asarray(boxes, dtype=np.float32)
-    if boxes.size == 0:
-        return boxes.reshape(0, 4)
-    cx, cy, w, h = boxes.T
-    return np.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=1)
 
 
 def kmeans_anchors(wh: np.ndarray, k: int, iters: int = 100, seed: int = 0) -> np.ndarray:
